@@ -1,6 +1,6 @@
 # QUERY BOT - Smart Caching Chat Application
 
-A intelligent chat application that provides detailed answers on first query and ultra-short cached summaries for repeat questions, powered by Groq's LLM and Redis caching.
+An intelligent chat application that provides detailed answers on first query and ultra-short cached summaries for repeat questions, powered by Groq's LLM and Redis caching.
 
 ## ✨ Features
 
@@ -12,6 +12,7 @@ A intelligent chat application that provides detailed answers on first query and
 - **📜 Conversation History** - Stores last 50 conversations per user (7-day retention)
 - **⚡ Lightning Fast** - Cached responses for repeated queries
 - **👤 Multi-User Support** - Separate history and cache per user
+- **📊 Usage Score Tracking** - Per-user token usage score displayed in the sidebar
 
 ## 🛠️ Technology Stack
 
@@ -99,6 +100,30 @@ The application comes with two predefined users:
    - Viewable in expandable section
    - Auto-expires after 7 days
 
+4. **Usage Score Tracking**
+   - Every new question triggers two Groq API calls (full answer + summary)
+   - Tokens from both calls are counted and multiplied by 10
+   - Score accumulates per user and is shown in the sidebar
+   - Cached/repeat answers cost nothing (no API call made)
+
+## 📊 Usage Score
+
+The sidebar displays a **Usage Score** for each logged-in user. This is a simple relative indicator of how many tokens that user has consumed against your Groq API key.
+
+**Formula:**
+```
+usage_score = (prompt_tokens + completion_tokens) × 10
+```
+
+**Example:**
+- Full answer call: 400 input + 900 output = 1,300 tokens
+- Summary call: 950 input + 80 output = 1,030 tokens
+- Total tokens: 2,330 → **Usage Score: 23,300**
+
+> Note: This is not a dollar amount. It is a relative usage indicator. Each new question makes two API calls to Groq, so scores grow faster than you might expect. Repeat questions served from cache add 0 to the score.
+
+The score is stored in Redis under the key `usage_score:<username>` and persists across sessions.
+
 ## 📁 Project Structure
 
 ```
@@ -114,7 +139,8 @@ query-bot/
 - First-time questions get comprehensive answers
 - Repeat the same question to get quick summaries
 - Use "Clear my history" button to delete your conversation history
-- Each user has their own cache and history
+- Each user has their own cache, history, and usage score
+- Monitor your usage score to gauge how heavily your Groq API key is being used
 
 ## ⚠️ Important Notes
 
@@ -122,6 +148,7 @@ query-bot/
 - Groq API key is required for LLM responses
 - Authentication is basic - replace with production-ready auth for public deployment
 - Cache keys are user-specific, ensuring privacy between users
+- Each new question makes **two** Groq API calls (answer + summary)
 
 ## 🔒 Security Considerations
 

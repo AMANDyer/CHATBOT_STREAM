@@ -77,6 +77,18 @@ def load_history(username: str):
 def clear_history(username: str):
     redis_client.delete(history_key(username))
 
+# ──── Usage Score Helpers ───────────────────────────────────────────────────
+def usage_score_key(username: str) -> str:
+    return f"usage_score:{username}"
+
+def add_usage_score(username: str, prompt_tokens: int, completion_tokens: int):
+    fake_cost = (prompt_tokens + completion_tokens) * 10
+    redis_client.incrbyfloat(usage_score_key(username), fake_cost)
+
+def get_usage_score(username: str) -> int:
+    val = redis_client.get(usage_score_key(username))
+    return int(float(val)) if val else 0
+
 # ──── Session state initialization ──────────────────────────────────────────
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -103,6 +115,10 @@ with st.sidebar:
             for k in list(st.session_state.keys()):
                 del st.session_state[k]
             st.rerun()
+
+        usage_score = get_usage_score(st.session_state.username)
+        st.metric("📊 Usage Score", f"{usage_score:,}")
+        st.caption("Score = total tokens used × 10")
 
         if st.button("🗑️ Clear my history", use_container_width=True):
             clear_history(st.session_state.username)
@@ -214,6 +230,7 @@ if question:
                     max_tokens=2048,
                 )
                 full_text = full_resp.choices[0].message.content.strip()
+                full_usage = full_resp.usage
 
                 # Create very short summary
                 summary_prompt = (
@@ -227,6 +244,12 @@ if question:
                     max_tokens=140,
                 )
                 summary_text = summary_resp.choices[0].message.content.strip()
+                summary_usage = summary_resp.usage
+
+                # Accumulate usage score for both API calls
+                total_prompt = full_usage.prompt_tokens + summary_usage.prompt_tokens
+                total_completion = full_usage.completion_tokens + summary_usage.completion_tokens
+                add_usage_score(USERNAME, total_prompt, total_completion)
 
                 # Cache **only** the summary + mark that full was shown
                 redis_client.setex(summary_key, CACHE_TTL_SECONDS, summary_text)
